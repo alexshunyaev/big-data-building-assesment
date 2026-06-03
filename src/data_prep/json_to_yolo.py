@@ -69,6 +69,7 @@ def process_xview2_to_yolo(raw_dir: Path, out_dir: Path):
 
 
 if __name__ == "__main__":
-    RAW_DATA = Path("../../data/raw/train")
-    YOLO_OUT = Path("../../data/yolo_format")
+    _HERE = Path(__file__).parent
+    RAW_DATA = _HERE / "../../data/raw/train"
+    YOLO_OUT = _HERE / "../../data/yolo_format"
     process_xview2_to_yolo(RAW_DATA, YOLO_OUT)

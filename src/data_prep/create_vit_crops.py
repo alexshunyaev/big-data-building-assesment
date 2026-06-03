@@ -79,8 +79,9 @@ def create_vit_dataset(raw_dir: Path, out_dir: Path, crop_size: int = 64):
 
 
 if __name__ == "__main__":
-    RAW_DATA = Path("../../data/raw/train")
-    VIT_OUT = Path("../../data/vit_crops/train")
+    _HERE = Path(__file__).parent
+    RAW_DATA = _HERE / "../../data/raw/train"
+    VIT_OUT = _HERE / "../../data/vit_crops/train"
 
     # 64x64 is excellent for ViTs processing buildings. Combined, the image is 128x64.
     create_vit_dataset(RAW_DATA, VIT_OUT, crop_size=64)

@@ -1,23 +1,23 @@
-=== ViT Classification Metrics ===
+=== Custom ViT Classification Metrics ===
 
 Training Summary
 Total Epochs Run,38
-Best Val Loss,0.6784
-Final Train Loss,0.4552
-Final Val Loss,0.7591
-Overall Accuracy,0.7706
+Final Train Loss,0.4367
+Final Train Accuracy,0.8181
+Best Validation Loss,0.6255
+Final Evaluation Accuracy,0.7906
 
 Class,Precision,Recall,F1-Score,Support
-no-damage,0.9689,0.7908,0.8709,23314
-minor-damage,0.3912,0.6050,0.4751,3015
-major-damage,0.4480,0.7159,0.5511,2756
-destroyed,0.6052,0.8410,0.7039,2541
+no-damage,0.9775,0.7932,0.8757,116159
+minor-damage,0.4265,0.7410,0.5414,14888
+major-damage,0.4877,0.7380,0.5873,14077
+destroyed,0.6862,0.8812,0.7716,13010
 
-Weighted Avg,0.8392,0.7706,0.7919,31626
+Weighted Avg,0.8580,0.7906,0.8100,158134
 
 === Confusion Matrix ===
 Predicted ->,no-damage,minor-damage,major-damage,destroyed
-no-damage,18437,2320,1532,1025
-minor-damage,286,1824,724,181
-major-damage,193,402,1973,188
-destroyed,112,117,175,2137
+no-damage,92136,11894,8093,4036
+minor-damage,1106,11032,2227,523
+major-damage,596,2408,10389,684
+destroyed,420,534,591,11465

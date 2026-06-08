@@ -4,7 +4,7 @@ ViT Evaluation & Visualization Module
 Standalone script for generating training plots and classification metrics.
 Reads artifacts produced by train_vit.py (training_history.json + best_vit.pth)
 and generates:
-    - Training loss/accuracy curves (PNG)
+    - Training/Validation loss and accuracy curves (PNG)
     - Per-class precision, recall, F1 metrics (CSV)
     - Confusion matrix heatmap (PNG)
     - Classification report (console + CSV)
@@ -35,7 +35,7 @@ if _SRC not in sys.path:
 
 from torch.utils.data import DataLoader
 from data_prep.vit_dataset import BuildingDamageDataset
-from models_vit.vit import SiameseViT
+from models_vit.vit import CustomChangeViT
 
 
 # Damage class names in ordinal order
@@ -44,11 +44,7 @@ CLASS_NAMES = ['no-damage', 'minor-damage', 'major-damage', 'destroyed']
 
 def plot_training_curves(history_path: str, output_dir: str):
     """
-    Plot training loss, accuracy, and learning rate curves from saved history.
-
-    Args:
-        history_path: Path to training_history.json
-        output_dir:   Directory to save the output PNG
+    Plot training/validation loss, accuracy, and learning rate curves.
     """
     with open(history_path, 'r') as f:
         history = json.load(f)
@@ -58,18 +54,20 @@ def plot_training_curves(history_path: str, output_dir: str):
     fig, axes = plt.subplots(1, 3, figsize=(18, 5))
 
     # --- Loss ---
-    axes[0].plot(epochs, history['train_loss'], linewidth=2, color='#e74c3c', label='Train Loss')
+    axes[0].plot(epochs, history['train_loss'], linewidth=2, color='#e74c3c', label='Train Loss', alpha=0.8)
+    axes[0].plot(epochs, history['val_loss'], linewidth=2, color='#c0392b', label='Val Loss', linestyle='--')
     axes[0].set_xlabel('Epoch', fontsize=12)
     axes[0].set_ylabel('Loss', fontsize=12)
-    axes[0].set_title('Training Loss', fontsize=14, fontweight='bold')
+    axes[0].set_title('Training & Validation Loss', fontsize=14, fontweight='bold')
     axes[0].legend(fontsize=11)
     axes[0].grid(True, alpha=0.3)
 
     # --- Accuracy ---
-    axes[1].plot(epochs, history['train_acc'], linewidth=2, color='#2ecc71', label='Train Accuracy')
+    axes[1].plot(epochs, history['train_acc'], linewidth=2, color='#2ecc71', label='Train Acc', alpha=0.8)
+    axes[1].plot(epochs, history['val_acc'], linewidth=2, color='#27ae60', label='Val Acc', linestyle='--')
     axes[1].set_xlabel('Epoch', fontsize=12)
     axes[1].set_ylabel('Accuracy', fontsize=12)
-    axes[1].set_title('Training Accuracy', fontsize=14, fontweight='bold')
+    axes[1].set_title('Training & Validation Accuracy', fontsize=14, fontweight='bold')
     axes[1].legend(fontsize=11)
     axes[1].grid(True, alpha=0.3)
 
@@ -92,10 +90,6 @@ def plot_training_curves(history_path: str, output_dir: str):
 def plot_confusion_matrix(cm: np.ndarray, output_dir: str):
     """
     Plot and save a confusion matrix heatmap.
-
-    Args:
-        cm:         Confusion matrix array [num_classes x num_classes]
-        output_dir: Directory to save the output PNG
     """
     fig, ax = plt.subplots(figsize=(8, 7))
 
@@ -106,7 +100,7 @@ def plot_confusion_matrix(cm: np.ndarray, output_dir: str):
     )
     ax.set_xlabel('Predicted', fontsize=13)
     ax.set_ylabel('Actual', fontsize=13)
-    ax.set_title('Confusion Matrix — Siamese ViT', fontsize=14, fontweight='bold')
+    ax.set_title('Confusion Matrix — Custom ViT', fontsize=14, fontweight='bold')
     plt.xticks(rotation=30, ha='right')
     plt.yticks(rotation=0)
 
@@ -121,23 +115,14 @@ def save_metrics_csv(all_labels: np.ndarray, all_preds: np.ndarray,
                      history_path: str, output_dir: str):
     """
     Compute and save classification metrics to CSV.
-
-    Args:
-        all_labels:   Ground truth labels
-        all_preds:    Predicted labels
-        history_path: Path to training_history.json (for training summary)
-        output_dir:   Directory to save the output CSV
     """
-    # Load training summary
     with open(history_path, 'r') as f:
         history = json.load(f)
 
-    # Per-class metrics
     precision_per_class = precision_score(all_labels, all_preds, average=None, zero_division=0)
     recall_per_class = recall_score(all_labels, all_preds, average=None, zero_division=0)
     f1_per_class = f1_score(all_labels, all_preds, average=None, zero_division=0)
 
-    # Weighted averages
     precision_w = precision_score(all_labels, all_preds, average='weighted', zero_division=0)
     recall_w = recall_score(all_labels, all_preds, average='weighted', zero_division=0)
     f1_w = f1_score(all_labels, all_preds, average='weighted', zero_division=0)
@@ -149,18 +134,17 @@ def save_metrics_csv(all_labels: np.ndarray, all_preds: np.ndarray,
     with open(metrics_path, 'w', newline='') as f:
         writer = csv.writer(f)
 
-        writer.writerow(["=== Siamese ViT Classification Metrics ==="])
+        writer.writerow(["=== Custom ViT Classification Metrics ==="])
         writer.writerow([])
 
-        # Training summary
         writer.writerow(["Training Summary"])
         writer.writerow(["Total Epochs Run", len(history['train_loss'])])
         writer.writerow(["Final Train Loss", f"{history['train_loss'][-1]:.4f}"])
         writer.writerow(["Final Train Accuracy", f"{history['train_acc'][-1]:.4f}"])
-        writer.writerow(["Overall Evaluation Accuracy", f"{overall_acc:.4f}"])
+        writer.writerow(["Best Validation Loss", f"{min(history['val_loss']):.4f}"])
+        writer.writerow(["Final Evaluation Accuracy", f"{overall_acc:.4f}"])
         writer.writerow([])
 
-        # Per-class metrics
         writer.writerow(["Class", "Precision", "Recall", "F1-Score", "Support"])
         for i, name in enumerate(CLASS_NAMES):
             support = int(np.sum(all_labels == i))
@@ -173,11 +157,9 @@ def save_metrics_csv(all_labels: np.ndarray, all_preds: np.ndarray,
             ])
         writer.writerow([])
 
-        writer.writerow(["Weighted Avg", f"{precision_w:.4f}", f"{recall_w:.4f}",
-                          f"{f1_w:.4f}", len(all_labels)])
+        writer.writerow(["Weighted Avg", f"{precision_w:.4f}", f"{recall_w:.4f}", f"{f1_w:.4f}", len(all_labels)])
         writer.writerow([])
 
-        # Confusion matrix
         writer.writerow(["=== Confusion Matrix ==="])
         writer.writerow(["Predicted ->"] + CLASS_NAMES)
         for i, name in enumerate(CLASS_NAMES):
@@ -189,13 +171,7 @@ def save_metrics_csv(all_labels: np.ndarray, all_preds: np.ndarray,
 
 def evaluate_model(model_path: str, data_dir: str, output_dir: str):
     """
-    Load the best model and run inference on the full dataset.
-    Generates confusion matrix heatmap and metrics CSV.
-
-    Args:
-        model_path: Path to best_vit.pth
-        data_dir:   Path to the training data directory
-        output_dir: Directory to save outputs
+    Load the best model and run inference.
     """
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"[*] Evaluating on device: {device}")
@@ -210,13 +186,14 @@ def evaluate_model(model_path: str, data_dir: str, output_dir: str):
         pin_memory=True if device.type == 'cuda' else False
     )
 
-    # Load model
-    print("[*] Loading best Siamese ViT model...")
-    model = SiameseViT(num_classes=4, pretrained=False).to(device)
+    print("[*] Loading best Custom ViT model...")
+    model = CustomChangeViT(
+        img_size=224, patch_size=16, in_channels=6, num_classes=4,
+        embed_dim=256, depth=6, num_heads=8
+    ).to(device)
     model.load_state_dict(torch.load(model_path, map_location=device, weights_only=True))
     model.eval()
 
-    # Inference
     all_preds = []
     all_labels = []
 
@@ -239,13 +216,6 @@ def evaluate_model(model_path: str, data_dir: str, output_dir: str):
 
 
 def run_full_evaluation():
-    """
-    End-to-end evaluation pipeline:
-    1. Plot training curves from history
-    2. Run inference with best model
-    3. Generate confusion matrix + metrics CSV
-    4. Print classification report to console
-    """
     project_root = os.path.dirname(os.path.dirname(_HERE))
     data_dir = os.path.join(project_root, "data", "vit_crops", "train")
     results_dir = os.path.join(project_root, "results", "res_vit")
@@ -255,17 +225,15 @@ def run_full_evaluation():
     os.makedirs(results_dir, exist_ok=True)
 
     print("=" * 60)
-    print("  Siamese ViT — Full Evaluation Pipeline")
+    print("  Custom Early-Fusion ViT — Full Evaluation Pipeline")
     print("=" * 60)
 
-    # 1. Training curves
     if os.path.exists(history_path):
         print("\n[Step 1/4] Plotting training curves...")
         plot_training_curves(history_path, results_dir)
     else:
         print(f"\n[Step 1/4] SKIPPED — {history_path} not found")
 
-    # 2. Model inference
     if not os.path.exists(model_path):
         print(f"\n[ERROR] Model not found at {model_path}")
         print("         Run train_vit.py first.")
@@ -274,15 +242,12 @@ def run_full_evaluation():
     print("\n[Step 2/4] Running model inference...")
     all_preds, all_labels = evaluate_model(model_path, data_dir, results_dir)
 
-    # 3. Metrics CSV
     print("\n[Step 3/4] Computing and saving metrics...")
     cm, overall_acc = save_metrics_csv(all_labels, all_preds, history_path, results_dir)
 
-    # 4. Confusion matrix heatmap
     print("\n[Step 4/4] Generating confusion matrix heatmap...")
     plot_confusion_matrix(cm, results_dir)
 
-    # Console report
     print("\n" + "=" * 60)
     print("  CLASSIFICATION REPORT")
     print("=" * 60)

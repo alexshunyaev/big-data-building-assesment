@@ -12,7 +12,7 @@ from models_vit.vit import CustomChangeViT
 
 class FocalLoss(nn.Module):
     """
-    Focal Loss (Lin et al., 2017) — down-weights easy / well-classified
+    Focal Loss  — down-weights easy / well-classified
     examples so the model concentrates on hard, misclassified samples.
     Combined with per-class alpha weights for class-imbalance handling.
     """
@@ -63,7 +63,6 @@ def train_model():
     print("\n[*] Initializing Dataset and splitting 80/20...")
     
     # We create two instances of the dataset. 
-    # Train gets augmentations to prevent overfitting.
     full_train_dataset = BuildingDamageDataset(root_dir=data_dir, augment=True)
     full_val_dataset = BuildingDamageDataset(root_dir=data_dir, augment=False)
 
@@ -171,7 +170,7 @@ def train_model():
         model.eval()
         val_loss, val_correct, val_total = 0.0, 0, 0
         
-        with torch.no_grad(): # Disable gradients for validation!
+        with torch.no_grad():
             for pre_imgs, post_imgs, labels in val_loader:
                 pre_imgs, post_imgs, labels = pre_imgs.to(device), post_imgs.to(device), labels.to(device)
                 outputs = model(pre_imgs, post_imgs)

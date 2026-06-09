@@ -4,9 +4,35 @@ import time
 import math
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader, Subset
+import torch.nn.functional as F
+from torch.utils.data import DataLoader, Subset, WeightedRandomSampler
 from data_prep.vit_dataset import BuildingDamageDataset
 from models_vit.vit import CustomChangeViT
+
+
+class FocalLoss(nn.Module):
+    """
+    Focal Loss (Lin et al., 2017) — down-weights easy / well-classified
+    examples so the model concentrates on hard, misclassified samples.
+    Combined with per-class alpha weights for class-imbalance handling.
+    """
+    def __init__(self, alpha=None, gamma=2.0, label_smoothing=0.0):
+        super().__init__()
+        self.alpha = alpha              # per-class weight tensor
+        self.gamma = gamma              # focusing parameter (γ=0 → standard CE)
+        self.label_smoothing = label_smoothing
+
+    def forward(self, inputs, targets):
+        # Standard CE per sample, with class weights + label smoothing baked in
+        ce_loss = F.cross_entropy(
+            inputs, targets,
+            weight=self.alpha,
+            label_smoothing=self.label_smoothing,
+            reduction='none'
+        )
+        pt = torch.exp(-ce_loss)                       # P(correct class)
+        focal_loss = ((1 - pt) ** self.gamma) * ce_loss # scale down easy samples
+        return focal_loss.mean()
 
 
 def train_model():
@@ -37,7 +63,7 @@ def train_model():
     print("\n[*] Initializing Dataset and splitting 80/20...")
     
     # We create two instances of the dataset. 
-    # Train gets augmentations to prevent overfitting. Val gets NO augmentations for clean testing.
+    # Train gets augmentations to prevent overfitting.
     full_train_dataset = BuildingDamageDataset(root_dir=data_dir, augment=True)
     full_val_dataset = BuildingDamageDataset(root_dir=data_dir, augment=False)
 
@@ -55,8 +81,22 @@ def train_model():
 
     print(f"[*] Total Images: {dataset_size} | Training: {len(train_subset)} | Validation: {len(val_subset)}")
 
+    # ---- Class-Balanced Sampling (oversamples minority classes) ----
+    train_labels = [full_train_dataset.labels[i] for i in train_indices]
+    class_sample_counts = torch.tensor(
+        [train_labels.count(c) for c in range(len(full_train_dataset.class_to_idx))],
+        dtype=torch.float
+    )
+    per_sample_weight = 1.0 / class_sample_counts[train_labels]
+    train_sampler = WeightedRandomSampler(
+        weights=per_sample_weight,
+        num_samples=len(per_sample_weight),
+        replacement=True
+    )
+    print(f"[*] Balanced sampler active — inverse class counts: {class_sample_counts.tolist()}")
+
     train_loader = DataLoader(
-        train_subset, batch_size=batch_size, shuffle=True,
+        train_subset, batch_size=batch_size, sampler=train_sampler,
         num_workers=4 if device.type == 'cuda' else 0, pin_memory=True if device.type == 'cuda' else False
     )
     
@@ -73,11 +113,11 @@ def train_model():
     # ---------------------------------------------------------------
     model = CustomChangeViT(
         img_size=224, patch_size=16, in_channels=6, num_classes=4,
-        embed_dim=256, depth=6, num_heads=8
+        embed_dim=256, depth=6, num_heads=8, drop_path_rate=0.2
     ).to(device)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=0.01)
-    criterion = nn.CrossEntropyLoss(weight=class_weights)
+    criterion = FocalLoss(alpha=None, gamma=2.0, label_smoothing=0.1)
 
     def lr_lambda(epoch):
         if epoch < warmup_epochs:
@@ -112,6 +152,7 @@ def train_model():
             outputs = model(pre_imgs, post_imgs)
             loss = criterion(outputs, labels)
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimizer.step()
 
             train_loss += loss.item() * labels.size(0)

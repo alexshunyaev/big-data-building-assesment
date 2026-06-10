@@ -22,3 +22,5 @@ __pycache__/
 .virtual_documents/
 .DS_Store
 Thumbs.db
+/data
+/.vscode

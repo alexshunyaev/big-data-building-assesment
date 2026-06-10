@@ -1,0 +1,9 @@
+path: C:/Users/misha/OneDrive/Desktop/DL/yolo-damage/data
+train: train/images
+val: val/images
+
+names:
+  0: no-damage
+  1: minor-damage
+  2: major-damage
+  3: destroyed

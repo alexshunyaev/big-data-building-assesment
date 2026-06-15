@@ -3,6 +3,7 @@ import json
 import time
 import math
 import torch
+import random
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, Subset, WeightedRandomSampler
@@ -86,7 +87,7 @@ def train_model():
         [train_labels.count(c) for c in range(len(full_train_dataset.class_to_idx))],
         dtype=torch.float
     )
-    per_sample_weight = 1.0 / class_sample_counts[train_labels]
+    per_sample_weight = 1.0 / torch.sqrt(class_sample_counts[train_labels])
     train_sampler = WeightedRandomSampler(
         weights=per_sample_weight,
         num_samples=len(per_sample_weight),
@@ -111,7 +112,7 @@ def train_model():
     # 3. Model, Optimizer, Scheduler Setup
     # ---------------------------------------------------------------
     model = CustomChangeViT(
-        img_size=224, patch_size=16, in_channels=6, num_classes=4,
+        img_size=224, patch_size=16, in_channels=9, num_classes=4,
         embed_dim=256, depth=6, num_heads=8, drop_path_rate=0.2
     ).to(device)
 
@@ -134,7 +135,7 @@ def train_model():
     best_val_loss = float('inf')
     epochs_no_improve = 0
     history = {'train_loss': [], 'train_acc': [], 'val_loss': [], 'val_acc': [], 'lr': [], 'epoch_time': []}
-    history_path = os.path.join(results_dir, "training_history.json")
+    history_path = os.path.join(results_dir, "training_history_9ch_withmixup.json")
 
     for epoch in range(epochs):
         start_time = time.time()
@@ -148,8 +149,23 @@ def train_model():
             pre_imgs, post_imgs, labels = pre_imgs.to(device), post_imgs.to(device), labels.to(device)
 
             optimizer.zero_grad()
+
+            # Mixup: blend random pairs to smooth class boundaries
+            use_mixup = random.random() < 0.5
+            if use_mixup:
+                lam = torch.distributions.Beta(
+                    torch.tensor(0.4), torch.tensor(0.4)
+                ).sample().item()
+                rand_idx = torch.randperm(labels.size(0), device=device)
+                pre_imgs = lam * pre_imgs + (1 - lam) * pre_imgs[rand_idx]
+                post_imgs = lam * post_imgs + (1 - lam) * post_imgs[rand_idx]
+
             outputs = model(pre_imgs, post_imgs)
-            loss = criterion(outputs, labels)
+
+            if use_mixup:
+                loss = lam * criterion(outputs, labels) + (1 - lam) * criterion(outputs, labels[rand_idx])
+            else:
+                loss = criterion(outputs, labels)
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimizer.step()
@@ -206,7 +222,7 @@ def train_model():
         if epoch_val_loss < best_val_loss:
             best_val_loss = epoch_val_loss
             epochs_no_improve = 0
-            torch.save(model.state_dict(), os.path.join(save_dir, "best_vit.pth"))
+            torch.save(model.state_dict(), os.path.join(save_dir, "best_vit_ch9_withmixup.pth"))
             print(f"      [!] New best model saved (Val Loss={epoch_val_loss:.4f})")
         else:
             epochs_no_improve += 1

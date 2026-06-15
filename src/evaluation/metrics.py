@@ -188,7 +188,7 @@ def evaluate_model(model_path: str, data_dir: str, output_dir: str):
 
     print("[*] Loading best Custom ViT model...")
     model = CustomChangeViT(
-        img_size=224, patch_size=16, in_channels=6, num_classes=4,
+        img_size=224, patch_size=16, in_channels=9, num_classes=4,
         embed_dim=256, depth=6, num_heads=8
     ).to(device)
     model.load_state_dict(torch.load(model_path, map_location=device, weights_only=True))
@@ -218,9 +218,9 @@ def evaluate_model(model_path: str, data_dir: str, output_dir: str):
 def run_full_evaluation():
     project_root = os.path.dirname(os.path.dirname(_HERE))
     data_dir = os.path.join(project_root, "data", "vit_crops", "train")
-    results_dir = os.path.join(project_root, "results", "res_vit")
-    model_path = os.path.join(project_root, "results", "models", "best_vit.pth")
-    history_path = os.path.join(results_dir, "training_history.json")
+    results_dir = os.path.join(project_root, "results", "res_vit_9ch_withmixup")
+    model_path = os.path.join(project_root, "results", "models", "best_vit_ch9_withmixup.pth")
+    history_path = os.path.join(results_dir, "training_history_9ch_withmixup.json")
 
     os.makedirs(results_dir, exist_ok=True)
 

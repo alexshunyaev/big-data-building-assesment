@@ -105,7 +105,7 @@ class TransformerBlock(nn.Module):
 
 class CustomChangeViT(nn.Module):
     def __init__(
-            self, img_size=224, patch_size=16, in_channels=6, num_classes=4,
+            self, img_size=224, patch_size=16, in_channels=9, num_classes=4,
             embed_dim=256, depth=6, num_heads=8, mlp_ratio=4.0, dropout=0.1, drop_path_rate=0.1
     ):
         super().__init__()
@@ -132,7 +132,12 @@ class CustomChangeViT(nn.Module):
         ])
 
         self.norm = nn.LayerNorm(embed_dim)
-        self.head = nn.Linear(embed_dim, num_classes)
+        self.head = nn.Sequential(
+            nn.Linear(embed_dim, embed_dim // 2),
+            nn.GELU(),
+            nn.Dropout(0.3),
+            nn.Linear(embed_dim // 2, num_classes)
+        )
 
         nn.init.trunc_normal_(self.pos_embed, std=.02)
         nn.init.trunc_normal_(self.cls_token, std=.02)
@@ -148,7 +153,8 @@ class CustomChangeViT(nn.Module):
             nn.init.constant_(m.weight, 1.0)
 
     def forward(self, pre_img, post_img):
-        x = torch.cat([pre_img, post_img], dim=1)
+        diff = torch.abs(post_img - pre_img)           # explicit change signal
+        x = torch.cat([pre_img, post_img, diff], dim=1)
         B = x.shape[0]
 
         x = self.patch_embed(x)

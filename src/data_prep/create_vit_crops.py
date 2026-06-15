@@ -83,5 +83,7 @@ if __name__ == "__main__":
     RAW_DATA = _HERE / "../../data/raw/train"
     VIT_OUT = _HERE / "../../data/vit_crops/train"
 
-    # 64x64 is excellent for ViTs processing buildings. Combined, the image is 128x64.
-    create_vit_dataset(RAW_DATA, VIT_OUT, crop_size=64)
+    # 224x224 matches the pretrained ViT input size (vit_small_patch16_224).
+    # Combined side-by-side image is 448x224.
+    create_vit_dataset(RAW_DATA, VIT_OUT, crop_size=224)
+

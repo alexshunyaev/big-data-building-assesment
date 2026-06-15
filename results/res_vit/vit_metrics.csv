@@ -1,0 +1,23 @@
+=== Custom ViT Classification Metrics ===
+
+Training Summary
+Total Epochs Run,40
+Final Train Loss,0.2852
+Final Train Accuracy,0.7282
+Best Validation Loss,0.2319
+Final Evaluation Accuracy,0.8673
+
+Class,Precision,Recall,F1-Score,Support
+no-damage,0.9491,0.9176,0.9331,116159
+minor-damage,0.5786,0.6218,0.5994,14888
+major-damage,0.6314,0.7213,0.6734,14077
+destroyed,0.8112,0.8579,0.8339,13010
+
+Weighted Avg,0.8746,0.8673,0.8704,158134
+
+=== Confusion Matrix ===
+Predicted ->,no-damage,minor-damage,major-damage,destroyed
+no-damage,106585,4510,3288,1776
+minor-damage,3234,9257,2071,326
+major-damage,1591,1837,10154,495
+destroyed,887,394,568,11161

@@ -1,3 +1,10 @@
+"""
+ViT Crops Generation Script
+
+This module extracts building crops from pre-disaster and post-disaster images
+based on polygon definitions and saves them for Vision Transformer (ViT) training.
+"""
+
 import json
 from pathlib import Path
 
@@ -10,6 +17,11 @@ from tqdm import tqdm
 def create_vit_dataset(raw_dir: Path, out_dir: Path, crop_size: int = 64):
     """
     Extracts building pairs (Pre and Post) and saves them into class folders.
+
+    Args:
+        raw_dir (Path): Path to the raw data directory containing images and labels.
+        out_dir (Path): Output directory where class folders will be created.
+        crop_size (int, optional): Size to resize the cropped buildings to. Defaults to 64.
     """
     raw_images_dir = raw_dir / "images"
     raw_labels_dir = raw_dir / "labels"
@@ -79,11 +91,11 @@ def create_vit_dataset(raw_dir: Path, out_dir: Path, crop_size: int = 64):
 
 
 if __name__ == "__main__":
-    _HERE = Path(__file__).parent
-    RAW_DATA = _HERE / "../../data/raw/train"
-    VIT_OUT = _HERE / "../../data/vit_crops/train"
+    _HERE = Path(__file__).resolve().parent
+    PROJECT_ROOT = _HERE.parents[1]
+    RAW_DATA = PROJECT_ROOT / "data" / "raw" / "train"
+    VIT_OUT = PROJECT_ROOT / "data" / "vit_crops" / "train"
 
     # 224x224 matches the pretrained ViT input size (vit_small_patch16_224).
     # Combined side-by-side image is 448x224.
     create_vit_dataset(RAW_DATA, VIT_OUT, crop_size=224)
-

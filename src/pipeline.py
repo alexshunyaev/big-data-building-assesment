@@ -1,4 +1,11 @@
-import os
+"""
+Inference Pipeline Script
+
+This module runs the full pipeline for detecting buildings and classifying
+their damage levels using a YOLO object detection model and a Vision Transformer
+(ViT) classification model.
+"""
+
 import cv2
 import torch
 import numpy as np
@@ -13,25 +20,53 @@ CROP_SIZE = 224
 CROP_PAD  = 2
 
 
-def load_yolo(weights_path: str, device: torch.device) -> YOLO:
-    model = YOLO(weights_path)
+def load_yolo(weights_path: str | Path, device: torch.device) -> YOLO:
+    """
+    Loads the YOLOv11 model.
+
+    Args:
+        weights_path (str | Path): Path to the trained YOLO weights.
+        device (torch.device): Target device (CPU or CUDA).
+
+    Returns:
+        YOLO: Loaded YOLO model.
+    """
+    model = YOLO(str(weights_path))
     model.to(device)
     return model
 
 
-def load_vit(weights_path: str, device: torch.device) -> CustomChangeViT:
+def load_vit(weights_path: str | Path, device: torch.device) -> CustomChangeViT:
+    """
+    Loads the Custom Change Vision Transformer model.
+
+    Args:
+        weights_path (str | Path): Path to the trained ViT weights.
+        device (torch.device): Target device (CPU or CUDA).
+
+    Returns:
+        CustomChangeViT: Loaded and initialized ViT model in evaluation mode.
+    """
     model = CustomChangeViT(
-        img_size=224, patch_size=16, in_channels=6, num_classes=4,
+        img_size=224, patch_size=16, in_channels=9, num_classes=4,
         embed_dim=256, depth=6, num_heads=8, drop_path_rate=0.2
     )
-    model.load_state_dict(torch.load(weights_path, map_location=device))
+    model.load_state_dict(torch.load(str(weights_path), map_location=device))
     model.to(device)
     model.eval()
     return model
 
 
 def _preprocess_crop(crop_bgr: np.ndarray) -> torch.Tensor:
-    """BGR crop → normalised CHW float tensor."""
+    """
+    Converts a BGR crop to a normalized CHW float tensor.
+
+    Args:
+        crop_bgr (np.ndarray): BGR image crop.
+
+    Returns:
+        torch.Tensor: Normalized tensor.
+    """
     rgb = cv2.cvtColor(crop_bgr, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
     rgb = (rgb - NORM_MEAN) / NORM_STD
     return torch.from_numpy(rgb).permute(2, 0, 1)
@@ -39,8 +74,15 @@ def _preprocess_crop(crop_bgr: np.ndarray) -> torch.Tensor:
 
 def _detect_buildings(yolo: YOLO, post_img_bgr: np.ndarray, conf: float = 0.25) -> list[list[int]]:
     """
-    Run YOLO on post-disaster image.
-    Returns list of pixel-space bboxes [x1, y1, x2, y2] — class ignored.
+    Runs YOLO on a post-disaster image to detect building bounding boxes.
+
+    Args:
+        yolo (YOLO): Loaded YOLO model.
+        post_img_bgr (np.ndarray): Post-disaster BGR image.
+        conf (float, optional): Confidence threshold. Defaults to 0.25.
+
+    Returns:
+        list[list[int]]: List of pixel-space bounding boxes [x1, y1, x2, y2].
     """
     h, w = post_img_bgr.shape[:2]
     results = yolo.predict(source=post_img_bgr, imgsz=1024, conf=conf, verbose=False)
@@ -58,7 +100,18 @@ def _detect_buildings(yolo: YOLO, post_img_bgr: np.ndarray, conf: float = 0.25) 
 
 def _classify_building(vit: CustomChangeViT, pre_bgr: np.ndarray, post_bgr: np.ndarray,
                         device: torch.device) -> tuple[str, float]:
-    """Crop pair → damage class label and confidence."""
+    """
+    Classifies building damage from pre and post disaster image crops.
+
+    Args:
+        vit (CustomChangeViT): Loaded ViT model.
+        pre_bgr (np.ndarray): Pre-disaster BGR image crop.
+        post_bgr (np.ndarray): Post-disaster BGR image crop.
+        device (torch.device): Computation device.
+
+    Returns:
+        tuple[str, float]: Predicted damage class and its confidence score.
+    """
     pre_t  = _preprocess_crop(pre_bgr).unsqueeze(0).to(device)
     post_t = _preprocess_crop(post_bgr).unsqueeze(0).to(device)
 
@@ -71,26 +124,29 @@ def _classify_building(vit: CustomChangeViT, pre_bgr: np.ndarray, post_bgr: np.n
 
 
 def run_pipeline(
-    pre_image_path:  str,
-    post_image_path: str,
-    yolo_weights:    str,
-    vit_weights:     str,
+    pre_image_path:  str | Path,
+    post_image_path: str | Path,
+    yolo_weights:    str | Path,
+    vit_weights:     str | Path,
     conf:            float = 0.25,
 ) -> list[dict]:
     """
-    Full inference pipeline for a single pre/post image pair.
+    Runs the full inference pipeline for a single pre/post image pair.
 
-    Returns a list of dicts:
-        {
-            "bbox":       [x1, y1, x2, y2],   # pixel coords in original image
-            "class":      "major-damage",
-            "confidence": 0.91
-        }
+    Args:
+        pre_image_path (str | Path): Path to pre-disaster image.
+        post_image_path (str | Path): Path to post-disaster image.
+        yolo_weights (str | Path): Path to YOLO weights.
+        vit_weights (str | Path): Path to ViT weights.
+        conf (float, optional): Confidence threshold. Defaults to 0.25.
+
+    Returns:
+        list[dict]: List of detection dictionaries containing bbox, class, and confidence.
     """
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    pre_bgr  = cv2.imread(pre_image_path)
-    post_bgr = cv2.imread(post_image_path)
+    pre_bgr  = cv2.imread(str(pre_image_path))
+    post_bgr = cv2.imread(str(post_image_path))
     if pre_bgr is None or post_bgr is None:
         raise FileNotFoundError(f"Could not load images:\n  {pre_image_path}\n  {post_image_path}")
 
@@ -113,59 +169,65 @@ def run_pipeline(
     return results
 
 
-def run_pipeline_batch(
-    pairs:        list[tuple[str, str]],
-    yolo_weights: str,
-    vit_weights:  str,
-    conf:         float = 0.25,
-) -> list[list[dict]]:
+def draw_and_show_results(image_path: str | Path, detections: list[dict]):
     """
-    Run the pipeline over multiple (pre, post) image path pairs.
-    Models are loaded once and reused across all pairs.
+    Draws bounding boxes and class labels on an image and displays it on screen.
 
-    Returns one result list per pair (same order as input).
+    Args:
+        image_path (str | Path): Path to the original post-disaster image.
+        detections (list[dict]): List of detections from run_pipeline.
     """
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    yolo = load_yolo(yolo_weights, device)
-    vit  = load_vit(vit_weights, device)
+    img = cv2.imread(str(image_path))
+    if img is None:
+        return
 
-    all_results = []
-    for i, (pre_path, post_path) in enumerate(pairs):
-        print(f"[{i+1}/{len(pairs)}] Processing: {Path(post_path).name}")
-        pre_bgr  = cv2.imread(pre_path)
-        post_bgr = cv2.imread(post_path)
-        if pre_bgr is None or post_bgr is None:
-            print(f"  [!] Skipping — could not load images.")
-            all_results.append([])
-            continue
+    # Colors in BGR format
+    color_map = {
+        "no-damage": (0, 255, 0),       # Green
+        "minor-damage": (0, 255, 255),  # Yellow
+        "major-damage": (0, 165, 255),  # Orange
+        "destroyed": (0, 0, 255)        # Red
+    }
 
-        boxes = _detect_buildings(yolo, post_bgr, conf=conf)
-        print(f"  [YOLO] {len(boxes)} buildings detected.")
+    for d in detections:
+        x1, y1, x2, y2 = d['bbox']
+        cls = d['class']
+        conf = d['confidence']
+        color = color_map.get(cls, (255, 255, 255))
 
-        scene_results = []
-        for bbox in boxes:
-            x1, y1, x2, y2 = bbox
-            pre_crop  = cv2.resize(pre_bgr[y1:y2, x1:x2],  (CROP_SIZE, CROP_SIZE))
-            post_crop = cv2.resize(post_bgr[y1:y2, x1:x2], (CROP_SIZE, CROP_SIZE))
-            label, conf_score = _classify_building(vit, pre_crop, post_crop, device)
-            scene_results.append({"bbox": bbox, "class": label, "confidence": round(conf_score, 4)})
+        # Draw bounding box
+        cv2.rectangle(img, (x1, y1), (x2, y2), color, 2)
 
-        all_results.append(scene_results)
+        # Draw label background
+        label = f"{cls} {conf:.2f}"
+        (w, h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+        cv2.rectangle(img, (x1, y1 - 20), (x1 + w, y1), color, -1)
 
-    return all_results
+        # Draw label text
+        cv2.putText(img, label, (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
+
+    cv2.imshow("Detection Results", img)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
 
 
 if __name__ == "__main__":
-    current_dir  = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.dirname(current_dir)
+    _HERE = Path(__file__).resolve().parent
+    PROJECT_ROOT = _HERE.parent
 
-    PRE_IMAGE   = os.path.join(project_root, "data", "raw", "test", "images", "guatemala-volcano_00000000_pre_disaster.png")
-    POST_IMAGE  = os.path.join(project_root, "data", "raw", "test", "images", "guatemala-volcano_00000000_post_disaster.png")
-    YOLO_WEIGHTS = os.path.join(project_root, "yolo-damage", "runs", "damage_yolo11s_1024_balanced", "weights", "best.pt")
-    VIT_WEIGHTS  = os.path.join(project_root, "results", "models", "best_vit.pth")
+    PRE_IMAGE   = PROJECT_ROOT / "data" / "raw" / "test" / "images" / "hurricane-florence_00000150_pre_disaster.png"
+    POST_IMAGE  = PROJECT_ROOT / "data" / "raw" / "test" / "images" / "hurricane-florence_00000150_post_disaster.png"
+    YOLO_WEIGHTS = PROJECT_ROOT / "results" / "models" / "best_yolo.pt"
+    VIT_WEIGHTS  = PROJECT_ROOT / "results" / "models" / "best_vit.pth"
 
-    detections = run_pipeline(PRE_IMAGE, POST_IMAGE, YOLO_WEIGHTS, VIT_WEIGHTS)
+    try:
+        detections = run_pipeline(PRE_IMAGE, POST_IMAGE, YOLO_WEIGHTS, VIT_WEIGHTS)
+        print(f"\n=== Results: {len(detections)} buildings ===")
+        for i, d in enumerate(detections):
+            print(f"  [{i+1}] {d['class']:<15} conf={d['confidence']:.2f}  bbox={d['bbox']}")
 
-    print(f"\n=== Results: {len(detections)} buildings ===")
-    for i, d in enumerate(detections):
-        print(f"  [{i+1}] {d['class']:<15} conf={d['confidence']:.2f}  bbox={d['bbox']}")
+        draw_and_show_results(POST_IMAGE, detections)
+
+    except FileNotFoundError as e:
+        print(f"Setup Notice: {e}")
+        print("Please ensure the data and weights paths exist to run this example.")

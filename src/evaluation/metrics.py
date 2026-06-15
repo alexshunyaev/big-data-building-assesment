@@ -2,8 +2,7 @@
 ViT Evaluation & Visualization Module
 
 Standalone script for generating training plots and classification metrics.
-Reads artifacts produced by train_vit.py (training_history.json + best_vit.pth)
-and generates:
+Reads artifacts produced by train_vit.py and generates:
     - Training/Validation loss and accuracy curves (PNG)
     - Per-class precision, recall, F1 metrics (CSV)
     - Confusion matrix heatmap (PNG)
@@ -12,13 +11,15 @@ and generates:
 Usage:
     python src/evaluation/metrics.py
 """
-import os
-import sys
-import json
 import csv
+import json
+import sys
+from pathlib import Path
+
+import matplotlib
 import numpy as np
 import torch
-import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -28,23 +29,24 @@ from sklearn.metrics import (
 )
 
 # Add project src directory to path for imports
-_HERE = os.path.dirname(os.path.abspath(__file__))
-_SRC = os.path.dirname(_HERE)
-if _SRC not in sys.path:
-    sys.path.insert(0, _SRC)
+_HERE = Path(__file__).resolve().parent
+_SRC = _HERE.parent
+PROJECT_ROOT = _SRC.parent
+
+if str(_SRC) not in sys.path:
+    sys.path.insert(0, str(_SRC))
 
 from torch.utils.data import DataLoader
 from data_prep.vit_dataset import BuildingDamageDataset
 from models_vit.vit import CustomChangeViT
 
-
-# Damage class names in ordinal order
+# Damage class names
 CLASS_NAMES = ['no-damage', 'minor-damage', 'major-damage', 'destroyed']
 
 
-def plot_training_curves(history_path: str, output_dir: str):
+def plot_training_curves(history_path: str | Path, output_dir: str | Path):
     """
-    Plot training/validation loss, accuracy, and learning rate curves.
+    Plots training/validation loss, accuracy, and learning rate curves and saves them to PNG.
     """
     with open(history_path, 'r') as f:
         history = json.load(f)
@@ -81,15 +83,15 @@ def plot_training_curves(history_path: str, output_dir: str):
     axes[2].ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
 
     plt.tight_layout()
-    plot_path = os.path.join(output_dir, "vit_training_curves.png")
-    plt.savefig(plot_path, dpi=150, bbox_inches='tight')
+    plot_path = Path(output_dir) / "vit_training_curves.png"
+    plt.savefig(str(plot_path), dpi=150, bbox_inches='tight')
     plt.close()
     print(f"[*] Training curves saved to {plot_path}")
 
 
-def plot_confusion_matrix(cm: np.ndarray, output_dir: str):
+def plot_confusion_matrix(cm: np.ndarray, output_dir: str | Path):
     """
-    Plot and save a confusion matrix heatmap.
+    Plots and saves a confusion matrix heatmap to a PNG file.
     """
     fig, ax = plt.subplots(figsize=(8, 7))
 
@@ -105,16 +107,16 @@ def plot_confusion_matrix(cm: np.ndarray, output_dir: str):
     plt.yticks(rotation=0)
 
     plt.tight_layout()
-    cm_path = os.path.join(output_dir, "vit_confusion_matrix.png")
-    plt.savefig(cm_path, dpi=150, bbox_inches='tight')
+    cm_path = Path(output_dir) / "vit_confusion_matrix.png"
+    plt.savefig(str(cm_path), dpi=150, bbox_inches='tight')
     plt.close()
     print(f"[*] Confusion matrix saved to {cm_path}")
 
 
 def save_metrics_csv(all_labels: np.ndarray, all_preds: np.ndarray,
-                     history_path: str, output_dir: str):
+                     history_path: str | Path, output_dir: str | Path):
     """
-    Compute and save classification metrics to CSV.
+    Computes classification metrics and saves them to a CSV report.
     """
     with open(history_path, 'r') as f:
         history = json.load(f)
@@ -130,7 +132,7 @@ def save_metrics_csv(all_labels: np.ndarray, all_preds: np.ndarray,
     overall_acc = np.mean(all_preds == all_labels)
     cm = confusion_matrix(all_labels, all_preds)
 
-    metrics_path = os.path.join(output_dir, "vit_metrics.csv")
+    metrics_path = Path(output_dir) / "vit_metrics.csv"
     with open(metrics_path, 'w', newline='') as f:
         writer = csv.writer(f)
 
@@ -169,21 +171,20 @@ def save_metrics_csv(all_labels: np.ndarray, all_preds: np.ndarray,
     return cm, overall_acc
 
 
-def evaluate_model(model_path: str, data_dir: str, output_dir: str):
+def evaluate_model(model_path: str | Path, data_dir: str | Path, output_dir: str | Path):
     """
-    Load the best model and run inference.
+    Loads the trained ViT model and evaluates it against the validation data.
     """
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"[*] Evaluating on device: {device}")
 
-    # Load dataset (no augmentation for evaluation)
     dataset = BuildingDamageDataset(root_dir=data_dir, augment=False)
     loader = DataLoader(
         dataset,
         batch_size=64,
         shuffle=False,
         num_workers=4 if device.type == 'cuda' else 0,
-        pin_memory=True if device.type == 'cuda' else False
+        pin_memory=device.type == 'cuda'
     )
 
     print("[*] Loading best Custom ViT model...")
@@ -191,7 +192,7 @@ def evaluate_model(model_path: str, data_dir: str, output_dir: str):
         img_size=224, patch_size=16, in_channels=9, num_classes=4,
         embed_dim=256, depth=6, num_heads=8
     ).to(device)
-    model.load_state_dict(torch.load(model_path, map_location=device, weights_only=True))
+    model.load_state_dict(torch.load(str(model_path), map_location=device, weights_only=True))
     model.eval()
 
     all_preds = []
@@ -216,25 +217,28 @@ def evaluate_model(model_path: str, data_dir: str, output_dir: str):
 
 
 def run_full_evaluation():
-    project_root = os.path.dirname(os.path.dirname(_HERE))
-    data_dir = os.path.join(project_root, "data", "vit_crops", "train")
-    results_dir = os.path.join(project_root, "results", "res_vit_9ch_withmixup")
-    model_path = os.path.join(project_root, "results", "models", "best_vit_ch9_withmixup.pth")
-    history_path = os.path.join(results_dir, "training_history_9ch_withmixup.json")
+    """
+    Orchestrates the evaluation pipeline by plotting training curves,
+    evaluating the model, calculating metrics, and printing a report.
+    """
+    data_dir = PROJECT_ROOT / "data" / "vit_crops" / "train"
+    results_dir = PROJECT_ROOT / "results" / "res_vit"
+    model_path = PROJECT_ROOT / "results" / "models" / "best_vit.pth"
+    history_path = results_dir / "training_history_9ch_withmixup.json"
 
-    os.makedirs(results_dir, exist_ok=True)
+    results_dir.mkdir(parents=True, exist_ok=True)
 
     print("=" * 60)
     print("  Custom Early-Fusion ViT — Full Evaluation Pipeline")
     print("=" * 60)
 
-    if os.path.exists(history_path):
+    if history_path.exists():
         print("\n[Step 1/4] Plotting training curves...")
         plot_training_curves(history_path, results_dir)
     else:
         print(f"\n[Step 1/4] SKIPPED — {history_path} not found")
 
-    if not os.path.exists(model_path):
+    if not model_path.exists():
         print(f"\n[ERROR] Model not found at {model_path}")
         print("         Run train_vit.py first.")
         return

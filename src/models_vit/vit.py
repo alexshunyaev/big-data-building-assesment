@@ -1,7 +1,18 @@
+"""
+Vision Transformer Architecture Script
+
+This module defines the Vision Transformer (ViT) architecture used for classifying
+building damage from pre- and post-disaster images.
+"""
+
 import torch
 import torch.nn as nn
 
+
 class PatchEmbedding(nn.Module):
+    """
+    Splits the image into patches and linearly embeds them.
+    """
     def __init__(self, in_channels=6, patch_size=16, embed_dim=256, img_size=224):
         super().__init__()
         self.patch_size = patch_size
@@ -13,7 +24,7 @@ class PatchEmbedding(nn.Module):
             stride=patch_size
         )
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.proj(x)
         x = x.flatten(2)
         x = x.transpose(1, 2)
@@ -21,6 +32,9 @@ class PatchEmbedding(nn.Module):
 
 
 class MultiHeadSelfAttention(nn.Module):
+    """
+    Multi-Head Self Attention mechanism.
+    """
     def __init__(self, embed_dim=256, num_heads=8, dropout=0.1):
         super().__init__()
         self.num_heads = num_heads
@@ -32,7 +46,7 @@ class MultiHeadSelfAttention(nn.Module):
         self.proj = nn.Linear(embed_dim, embed_dim)
         self.proj_drop = nn.Dropout(dropout)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         B, N, C = x.shape
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, self.head_dim)
         qkv = qkv.permute(2, 0, 3, 1, 4)
@@ -50,6 +64,9 @@ class MultiHeadSelfAttention(nn.Module):
 
 
 class MLP(nn.Module):
+    """
+    Multilayer Perceptron block with GELU activation.
+    """
     def __init__(self, in_features, hidden_features, dropout=0.1):
         super().__init__()
         self.fc1 = nn.Linear(in_features, hidden_features)
@@ -57,7 +74,7 @@ class MLP(nn.Module):
         self.fc2 = nn.Linear(hidden_features, in_features)
         self.drop = nn.Dropout(dropout)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.fc1(x)
         x = self.act(x)
         x = self.drop(x)
@@ -66,7 +83,10 @@ class MLP(nn.Module):
         return x
 
 
-def drop_path(x, drop_prob: float = 0., training: bool = False):
+def drop_path(x: torch.Tensor, drop_prob: float = 0., training: bool = False) -> torch.Tensor:
+    """
+    Stochastic Depth (Drop Path) function per sample.
+    """
     if drop_prob == 0. or not training:
         return x
     keep_prob = 1 - drop_prob
@@ -78,15 +98,21 @@ def drop_path(x, drop_prob: float = 0., training: bool = False):
 
 
 class DropPath(nn.Module):
+    """
+    Drop paths per sample during training.
+    """
     def __init__(self, drop_prob=None):
         super().__init__()
         self.drop_prob = drop_prob
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         return drop_path(x, self.drop_prob, self.training)
 
 
 class TransformerBlock(nn.Module):
+    """
+    A single Transformer block incorporating Attention, MLP and DropPath.
+    """
     def __init__(self, embed_dim=256, num_heads=8, mlp_ratio=4.0, dropout=0.1, drop_path_prob=0.1):
         super().__init__()
         self.norm1 = nn.LayerNorm(embed_dim)
@@ -97,13 +123,17 @@ class TransformerBlock(nn.Module):
         hidden_features = int(embed_dim * mlp_ratio)
         self.mlp = MLP(in_features=embed_dim, hidden_features=hidden_features, dropout=dropout)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = x + self.drop_path(self.attn(self.norm1(x)))
         x = x + self.drop_path(self.mlp(self.norm2(x)))
         return x
 
 
 class CustomChangeViT(nn.Module):
+    """
+    Custom Change Vision Transformer (ViT) for Damage Classification.
+    Early-fusion architecture combining pre-disaster, post-disaster, and difference images.
+    """
     def __init__(
             self, img_size=224, patch_size=16, in_channels=9, num_classes=4,
             embed_dim=256, depth=6, num_heads=8, mlp_ratio=4.0, dropout=0.1, drop_path_rate=0.1
@@ -143,7 +173,10 @@ class CustomChangeViT(nn.Module):
         nn.init.trunc_normal_(self.cls_token, std=.02)
         self.apply(self._init_weights)
 
-    def _init_weights(self, m):
+    def _init_weights(self, m: nn.Module):
+        """
+        Initializes weights for linear layers and normalizations.
+        """
         if isinstance(m, nn.Linear):
             nn.init.trunc_normal_(m.weight, std=.02)
             if isinstance(m, nn.Linear) and m.bias is not None:
@@ -152,7 +185,10 @@ class CustomChangeViT(nn.Module):
             nn.init.constant_(m.bias, 0)
             nn.init.constant_(m.weight, 1.0)
 
-    def forward(self, pre_img, post_img):
+    def forward(self, pre_img: torch.Tensor, post_img: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass of the Vision Transformer.
+        """
         diff = torch.abs(post_img - pre_img)           # explicit change signal
         x = torch.cat([pre_img, post_img, diff], dim=1)
         B = x.shape[0]

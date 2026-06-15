@@ -1,48 +1,65 @@
-import os
+"""
+ViT Training Script
+
+This module defines the training loop, focal loss, and evaluation metrics
+for training the Custom Change Vision Transformer.
+"""
+
 import json
 import time
 import math
-import torch
 import random
+from pathlib import Path
+
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, Subset, WeightedRandomSampler
+
 from data_prep.vit_dataset import BuildingDamageDataset
 from models_vit.vit import CustomChangeViT
 
 
 class FocalLoss(nn.Module):
     """
-    Focal Loss  — down-weights easy / well-classified
-    examples so the model concentrates on hard, misclassified samples.
-    Combined with per-class alpha weights for class-imbalance handling.
+    Focal Loss: Down-weights easy/well-classified examples to concentrate
+    on hard, misclassified samples. Handles class imbalance via alpha weights.
     """
     def __init__(self, alpha=None, gamma=2.0, label_smoothing=0.0):
         super().__init__()
         self.alpha = alpha              # per-class weight tensor
-        self.gamma = gamma              # focusing parameter (γ=0 → standard CE)
+        self.gamma = gamma              # focusing parameter
         self.label_smoothing = label_smoothing
 
     def forward(self, inputs, targets):
-        # Standard CE per sample, with class weights + label smoothing baked in
         ce_loss = F.cross_entropy(
             inputs, targets,
             weight=self.alpha,
             label_smoothing=self.label_smoothing,
             reduction='none'
         )
-        pt = torch.exp(-ce_loss)                       # P(correct class)
-        focal_loss = ((1 - pt) ** self.gamma) * ce_loss # scale down easy samples
+        pt = torch.exp(-ce_loss)
+        focal_loss = ((1 - pt) ** self.gamma) * ce_loss
         return focal_loss.mean()
 
 
 def train_model():
+    """
+    Main training function. Sets up datasets, dataloaders, model, optimizer,
+    and executes the training loop with validation.
+    """
     # ---------------------------------------------------------------
-    # Configuration
+    # 1. Configuration
     # ---------------------------------------------------------------
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.dirname(current_dir)
-    data_dir = os.path.join(project_root, "data", "vit_crops", "train")
+    _HERE = Path(__file__).resolve().parent
+    PROJECT_ROOT = _HERE.parent
+    
+    DATA_DIR = PROJECT_ROOT / "data" / "vit_crops" / "train"
+    SAVE_DIR = PROJECT_ROOT / "results" / "models"
+    RESULTS_DIR = PROJECT_ROOT / "results" / "res_vit"
+    
+    SAVE_DIR.mkdir(parents=True, exist_ok=True)
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
     batch_size = 32
     epochs = 50
@@ -50,24 +67,17 @@ def train_model():
     warmup_epochs = 5
     patience = 15
 
-    save_dir = os.path.join(project_root, "results", "models")
-    results_dir = os.path.join(project_root, "results", "res_vit")
-    os.makedirs(save_dir, exist_ok=True)
-    os.makedirs(results_dir, exist_ok=True)
-
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"[*] Training on device: {device}")
 
     # ---------------------------------------------------------------
-    # 2. Dataset Initialization & 80/20 Split
+    # 2. Dataset Initialization & Split
     # ---------------------------------------------------------------
     print("\n[*] Initializing Dataset and splitting 80/20...")
     
-    # We create two instances of the dataset. 
-    full_train_dataset = BuildingDamageDataset(root_dir=data_dir, augment=True)
-    full_val_dataset = BuildingDamageDataset(root_dir=data_dir, augment=False)
+    full_train_dataset = BuildingDamageDataset(root_dir=DATA_DIR, augment=True)
+    full_val_dataset = BuildingDamageDataset(root_dir=DATA_DIR, augment=False)
 
-    # Generate random indices for the split
     dataset_size = len(full_train_dataset)
     indices = torch.randperm(dataset_size).tolist()
     val_split = int(0.2 * dataset_size)
@@ -75,13 +85,12 @@ def train_model():
     train_indices = indices[val_split:]
     val_indices = indices[:val_split]
 
-    # Create subsets using the specific indices
     train_subset = Subset(full_train_dataset, train_indices)
     val_subset = Subset(full_val_dataset, val_indices)
 
     print(f"[*] Total Images: {dataset_size} | Training: {len(train_subset)} | Validation: {len(val_subset)}")
 
-    # ---- Class-Balanced Sampling (oversamples minority classes) ----
+    # Balanced Sampling
     train_labels = [full_train_dataset.labels[i] for i in train_indices]
     class_sample_counts = torch.tensor(
         [train_labels.count(c) for c in range(len(full_train_dataset.class_to_idx))],
@@ -97,19 +106,16 @@ def train_model():
 
     train_loader = DataLoader(
         train_subset, batch_size=batch_size, sampler=train_sampler,
-        num_workers=4 if device.type == 'cuda' else 0, pin_memory=True if device.type == 'cuda' else False
+        num_workers=4 if device.type == 'cuda' else 0, pin_memory=device.type == 'cuda'
     )
     
     val_loader = DataLoader(
         val_subset, batch_size=batch_size, shuffle=False,
-        num_workers=4 if device.type == 'cuda' else 0, pin_memory=True if device.type == 'cuda' else False
+        num_workers=4 if device.type == 'cuda' else 0, pin_memory=device.type == 'cuda'
     )
 
-    # Calculate weights using the base dataset
-    class_weights = full_train_dataset.get_class_weights().to(device)
-
     # ---------------------------------------------------------------
-    # 3. Model, Optimizer, Scheduler Setup
+    # 3. Setup Model, Optimizer, Scheduler
     # ---------------------------------------------------------------
     model = CustomChangeViT(
         img_size=224, patch_size=16, in_channels=9, num_classes=4,
@@ -129,13 +135,13 @@ def train_model():
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
 
     # ---------------------------------------------------------------
-    # 4. Training Loop with Validation
+    # 4. Training Loop
     # ---------------------------------------------------------------
     print(f"\n[*] Starting Training Loop ({epochs} epochs, patience={patience})...")
     best_val_loss = float('inf')
     epochs_no_improve = 0
     history = {'train_loss': [], 'train_acc': [], 'val_loss': [], 'val_acc': [], 'lr': [], 'epoch_time': []}
-    history_path = os.path.join(results_dir, "training_history_9ch_withmixup.json")
+    history_path = RESULTS_DIR / "training_history_9ch_withmixup.json"
 
     for epoch in range(epochs):
         start_time = time.time()
@@ -150,7 +156,6 @@ def train_model():
 
             optimizer.zero_grad()
 
-            # Mixup: blend random pairs to smooth class boundaries
             use_mixup = random.random() < 0.5
             if use_mixup:
                 lam = torch.distributions.Beta(
@@ -166,6 +171,7 @@ def train_model():
                 loss = lam * criterion(outputs, labels) + (1 - lam) * criterion(outputs, labels[rand_idx])
             else:
                 loss = criterion(outputs, labels)
+                
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimizer.step()
@@ -201,11 +207,9 @@ def train_model():
         epoch_val_acc = val_correct / val_total
         epoch_time = time.time() - start_time
 
-        # Step scheduler
         scheduler.step()
         current_lr = scheduler.get_last_lr()[0]
 
-        # Record history
         history['train_loss'].append(epoch_train_loss)
         history['train_acc'].append(epoch_train_acc)
         history['val_loss'].append(epoch_val_loss)
@@ -218,11 +222,11 @@ def train_model():
               f"V-Loss: {epoch_val_loss:.4f} | V-Acc: {epoch_val_acc:.4f} | "
               f"Time: {epoch_time:.1f}s")
 
-        # --- CHECKPOINT (Based on Validation Loss) ---
+        # --- CHECKPOINT ---
         if epoch_val_loss < best_val_loss:
             best_val_loss = epoch_val_loss
             epochs_no_improve = 0
-            torch.save(model.state_dict(), os.path.join(save_dir, "best_vit_ch9_withmixup.pth"))
+            torch.save(model.state_dict(), SAVE_DIR / "best_vit_ch9_withmixup.pth")
             print(f"      [!] New best model saved (Val Loss={epoch_val_loss:.4f})")
         else:
             epochs_no_improve += 1
@@ -233,11 +237,11 @@ def train_model():
                     json.dump(history, f, indent=2)
                 break
 
-        # Save history safely
         with open(history_path, 'w') as f:
             json.dump(history, f, indent=2)
 
     print(f"\n[*] Training Complete. Best Validation Loss: {best_val_loss:.4f}")
+
 
 if __name__ == "__main__":
     train_model()

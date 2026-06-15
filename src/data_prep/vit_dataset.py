@@ -1,16 +1,31 @@
-import os
-import glob
+"""
+ViT Dataset Script
+
+This module defines the PyTorch Dataset class used for loading the building
+damage classification crops for Vision Transformer training.
+"""
+
+from pathlib import Path
+
+import cv2
 import torch
 import numpy as np
 from torch.utils.data import Dataset
-import cv2
 
 STD_MEAN = np.array([0.5, 0.5, 0.5], dtype=np.float32)
 STD_DEV = np.array([0.5, 0.5, 0.5], dtype=np.float32)
 
+
 class BuildingDamageDataset(Dataset):
-    def __init__(self, root_dir, augment=False):
-        self.root_dir = root_dir
+    """
+    Dataset class for loading building damage pairs.
+
+    Attributes:
+        root_dir (Path): Root directory containing damage class folders.
+        augment (bool): Whether to apply data augmentation.
+    """
+    def __init__(self, root_dir: str | Path, augment: bool = False):
+        self.root_dir = Path(root_dir)
         self.augment = augment
 
         self.class_to_idx = {
@@ -22,16 +37,22 @@ class BuildingDamageDataset(Dataset):
         self.class_counts = {0: 0, 1: 0, 2: 0, 3: 0}
 
         for class_name, class_idx in self.class_to_idx.items():
-            class_dir = os.path.join(root_dir, class_name)
-            if not os.path.exists(class_dir):
+            class_dir = self.root_dir / class_name
+            if not class_dir.exists():
                 continue
 
-            img_files = glob.glob(os.path.join(class_dir, "*.png"))
+            img_files = list(class_dir.glob("*.png"))
             self.image_paths.extend(img_files)
             self.labels.extend([class_idx] * len(img_files))
             self.class_counts[class_idx] += len(img_files)
 
-    def get_class_weights(self):
+    def get_class_weights(self) -> torch.Tensor:
+        """
+        Calculates weights to balance the dataset during training.
+
+        Returns:
+            torch.Tensor: Tensor containing weights for each class.
+        """
         total_samples = len(self.image_paths)
         weights = []
         for i in range(len(self.class_to_idx)):
@@ -40,10 +61,13 @@ class BuildingDamageDataset(Dataset):
             weights.append(weight)
         return torch.tensor(weights, dtype=torch.float)
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.image_paths)
 
-    def _apply_augmentation(self, pre_img, post_img):
+    def _apply_augmentation(self, pre_img: np.ndarray, post_img: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Applies geometric and color augmentations identically to pre and post crops.
+        """
         rot_choice = np.random.randint(4)
         if rot_choice > 0:
             rot_code = [None, cv2.ROTATE_90_CLOCKWISE, cv2.ROTATE_180, cv2.ROTATE_90_COUNTERCLOCKWISE][rot_choice]
@@ -69,7 +93,10 @@ class BuildingDamageDataset(Dataset):
         return pre_img, post_img
 
     @staticmethod
-    def _apply_color_jitter(img, brightness, contrast, saturation, hue_shift):
+    def _apply_color_jitter(img: np.ndarray, brightness: float, contrast: float, saturation: float, hue_shift: float) -> np.ndarray:
+        """
+        Applies brightness, contrast, saturation, and hue shift jitter to an image.
+        """
         img = np.clip(img * brightness, 0, 255).astype(np.uint8)
         mean_val = img.mean()
         img = np.clip((img - mean_val) * contrast + mean_val, 0, 255).astype(np.uint8)
@@ -81,11 +108,14 @@ class BuildingDamageDataset(Dataset):
 
         return img
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor, int]:
+        """
+        Loads and returns a single sample from the dataset.
+        """
         img_path = self.image_paths[idx]
         label = self.labels[idx]
 
-        img = cv2.imread(img_path)
+        img = cv2.imread(str(img_path))
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
         width = img.shape[1]

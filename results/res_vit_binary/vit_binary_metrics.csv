@@ -1,0 +1,25 @@
+=== Binary ViT Classification Metrics ===
+
+Training Summary
+Total Epochs Run,40
+Final Train Loss,0.5190
+Final Train Accuracy,0.7914
+Best Validation Loss,0.4341
+Final Evaluation Accuracy,0.8820
+
+Per-Class Metrics
+Class,Precision,Recall,F1-Score,Support
+not-damaged,0.9734,0.8629,0.9148,116159
+damaged,0.7113,0.9347,0.8078,41975
+
+Weighted Avg,0.9038,0.8820,0.8864,158134
+
+Binary Metrics (positive class = damaged)
+Precision,0.7113
+Recall,0.9347
+F1-Score,0.8078
+
+=== Confusion Matrix ===
+Predicted ->,not-damaged,damaged
+not-damaged,100236,15923
+damaged,2743,39232

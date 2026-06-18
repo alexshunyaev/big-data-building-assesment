@@ -36,6 +36,7 @@ PROJECT_ROOT = _SRC.parent
 if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
+import argparse
 from torch.utils.data import DataLoader
 from data_prep.vit_dataset import BuildingDamageDataset
 from models_vit.vit import CustomChangeViT
@@ -216,12 +217,12 @@ def evaluate_model(model_path: str | Path, data_dir: str | Path, output_dir: str
     return all_preds, all_labels
 
 
-def run_full_evaluation():
+def run_full_evaluation(split="test"):
     """
     Orchestrates the evaluation pipeline by plotting training curves,
     evaluating the model, calculating metrics, and printing a report.
     """
-    data_dir = PROJECT_ROOT / "data" / "vit_crops" / "train"
+    data_dir = PROJECT_ROOT / "data" / "vit_crops" / split
     results_dir = PROJECT_ROOT / "results" / "res_vit"
     model_path = PROJECT_ROOT / "results" / "models" / "best_vit.pth"
     history_path = results_dir / "training_history_9ch_withmixup.json"
@@ -229,7 +230,7 @@ def run_full_evaluation():
     results_dir.mkdir(parents=True, exist_ok=True)
 
     print("=" * 60)
-    print("  Custom Early-Fusion ViT — Full Evaluation Pipeline")
+    print(f"  Custom Early-Fusion ViT — Full Evaluation Pipeline ({split} split)")
     print("=" * 60)
 
     if history_path.exists():
@@ -263,4 +264,7 @@ def run_full_evaluation():
 
 
 if __name__ == "__main__":
-    run_full_evaluation()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--split", type=str, default="test", help="Dataset split to evaluate on")
+    args = parser.parse_args()
+    run_full_evaluation(split=args.split)

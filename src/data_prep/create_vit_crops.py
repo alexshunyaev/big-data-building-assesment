@@ -90,11 +90,22 @@ def create_vit_dataset(raw_dir: Path, out_dir: Path, crop_size: int = 64):
             cv2.imwrite(str(save_path), combined_crop)
 
 
+import argparse
+
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Create ViT crops from raw data")
+    parser.add_argument("--split", type=str, default="train", choices=["train", "test", "hold"],
+                        help="Data split to process (train, test, or hold)")
+    args = parser.parse_args()
+
     _HERE = Path(__file__).resolve().parent
     PROJECT_ROOT = _HERE.parents[1]
-    RAW_DATA = PROJECT_ROOT / "data" / "raw" / "train"
-    VIT_OUT = PROJECT_ROOT / "data" / "vit_crops" / "train"
+    RAW_DATA = PROJECT_ROOT / "data" / "raw" / args.split
+    VIT_OUT = PROJECT_ROOT / "data" / "vit_crops" / args.split
+
+    print(f"[*] Processing '{args.split}' split...")
+    print(f"[*] Raw data: {RAW_DATA}")
+    print(f"[*] Output dir: {VIT_OUT}")
 
     # 224x224 matches the pretrained ViT input size (vit_small_patch16_224).
     # Combined side-by-side image is 448x224.

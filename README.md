@@ -1,54 +1,43 @@
-# Building Damage Assessment Project (YOLOv11)
+# Building Damage Assessment Project
 
-## Model Parameters
+This project aims to automate the assessment of building damage from natural disasters using satellite imagery. The models analyze pre- and post-disaster images to identify and classify the severity of structural damage. 
 
-### 1. `damage_yolo_run1-3`
-*   **Architecture:** YOLO11n (Nano)
-*   **Image Size (imgsz):** 1024
-*   **Batch Size:** 4
-*   **Epochs:** 30
-*   **Class Weighting (cls_pw):** 0.0
+## Dataset
+We use the **xBD Dataset** released in conjunction with the [xView2 Challenge](https://xview2.org/). It is one of the largest datasets for building segmentation and damage assessment, covering various disaster types with high-resolution optical satellite imagery.
 
-### 2. `damage_yolo11s_100ep-3`
-*   **Architecture:** YOLO11s (Small)
-*   **Image Size (imgsz):** 640
-*   **Batch Size:** 8
-*   **Epochs:** 100 (patience=20)
-*   **Class Weighting (cls_pw):** 0.0
+### Where to Put the Images
+1. Download the dataset from the xView2 website.
+2. Place the raw unzipped folders in `data/raw/` (e.g., `data/raw/train`, `data/raw/test`, `data/raw/hold`).
+   * Images should go into `data/raw/<split>/images/`.
+   * Labels (GeoJSON metadata) should go into `data/raw/<split>/labels/`.
 
-### 3. `damage_yolo11s_1024_balanced`
-*   **Architecture:** YOLO11s (Small)
-*   **Image Size (imgsz):** 1024
-*   **Batch Size:** 4
-*   **Epochs:** 100 (patience=20)
-*   **Class Weighting (cls_pw):** 1.0
-*   **Degrees (rotation):** 180.0
-*   **Vertical Flip (flipud):** 0.5
-*   **Horizontal Flip (fliplr):** 0.5
-
----
-
-## Repository Structure
-
-```text
-DL/ (Repository Root)
-├── .gitignore                       # File exclusion rules (dataset and base weights)
-├── prepare.ipynb                    # Data preprocessing notebook (WKT JSON -> YOLO format)
-├── Train.ipynb                      # Notebook used to train all model versions
-├── Test_model.ipynb                 # Notebook for model testing and validation inference
-└── yolo-damage/                     
-    ├── data.yaml                    # YOLO path and class name configurations
-    └── runs/                        # Training outputs of the three completed runs
-        ├── damage_yolo_run1-3/      # Weights, logs, and plots for Model 1 (YOLO11n)
-        ├── damage_yolo11s_100ep-3/  # Weights, logs, and plots for Model 2 (YOLO11s, 640px)
-        └── damage_yolo11s_1024_balanced/ # Weights, logs, and plots for Model 3 (YOLO11s, 1024px)
+## Setup
+Ensure you have Python 3.9+ installed. Set up your virtual environment and install the required dependencies:
+```bash
+pip install -r requirements.txt
 ```
 
-Each of the three run folders inside `runs/` contains:
-*   **`weights/best.pt`** — Trained model weights at the epoch with the best validation performance (recommended for testing and inference).
-*   **`weights/last.pt`** — Model weights at the final epoch of the training process.
-*   **`results.csv` & `results.png`** — Numerical logs and plots tracking training/validation losses and metrics over epochs.
-*   **`confusion_matrix.png`** — Classification confusion matrix across the 4 building damage levels.
-*   **Validation plots** — Performance metrics curves and visual predictions (e.g., `BoxPR_curve.png`, `BoxF1_curve.png`).
-# big-data-building-assesment
-Project for the Big Data course
+## Data Preprocessing for ViT
+Because Vision Transformers (ViT) require localized data without excessive background noise, the project includes a preprocessing pipeline to extract building footprints:
+1. **Run the script:**
+   ```bash
+   python src/data_prep/create_vit_crops.py --split train
+   ```
+2. **What it does:** It extracts building polygons using the xView2 JSON metadata, applies minor padding, and crops both pre- and post-disaster images from the exact same spatial coordinates.
+3. **Output:** Crops are resized to 224x224, concatenated side-by-side (448x224), and saved into categorized class folders (`no-damage`, `minor-damage`, `major-damage`, `destroyed`) inside `data/vit_crops/<split>/`.
+
+## Training Process
+The project supports different training paradigms for the Vision Transformer:
+*   **Multiclass Training (4 damage levels):** `python src/train_vit.py`
+*   **Binary Training (Damaged vs. Not Damaged):** `python src/train_vit_binary.py`
+
+**Key Training Mechanics:**
+*   **Handling Class Imbalance:** We use `WeightedRandomSampler` to ensure rare disaster/damage classes are sampled proportionally.
+*   **Augmentation:** Extensive geometric augmentations (flips, rotations) paired with Mixup regularization (applied with 50% probability during the training loop via a Beta distribution).
+*   **Optimization:** Trained using the AdamW optimizer with weight decay, coupled with a custom LambdaLR scheduler (linear warmup followed by cosine annealing).
+
+## Our Results
+
+### Vision Transformer (ViT)
+*   The evaluation metrics, training history curves, and confusion matrices are logged into the `results/res_vit/` and `results/res_vit_binary/` directories.
+*   The final model weights are saved as `.pth` files in `results/models/`.

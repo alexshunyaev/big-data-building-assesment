@@ -10,13 +10,13 @@ PROJECT_ROOT = _HERE.parents[1]
 # MODE SELECTION (Uncomment target)
 # ==========================================
 
-# MODEL 1: MULTICLASS (uncomment to use)
-# DATA_DIR = PROJECT_ROOT / "data" / "yolo_single_multi"
-# RUN_NAME = "single_multi_yolo11s_cls"
+# MODEL 1: MULTICLASS 
+DATA_DIR = PROJECT_ROOT / "data" / "yolo_single_multi"
+RUN_NAME = "single_multi_yolo11s_cls"
 
 # MODEL 2: BINARY (2 classes)
-DATA_DIR = PROJECT_ROOT / "data" / "yolo_single_binary"
-RUN_NAME = "single_binary_yolo11s_cls"
+# DATA_DIR = PROJECT_ROOT / "data" / "yolo_single_binary"
+# RUN_NAME = "single_binary_yolo11s_cls"
 
 # ==========================================
 

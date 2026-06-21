@@ -5,21 +5,21 @@ Total Epochs Run,50
 Final Train Loss,0.4791
 Final Train Accuracy,0.7991
 Best Validation Loss,0.3966
-Final Evaluation Accuracy,0.9151
+Final Evaluation Accuracy,0.8846
 
 Per-Class Metrics
 Class,Precision,Recall,F1-Score,Support
-not-damaged,0.9792,0.9036,0.9399,116159
-damaged,0.7802,0.9468,0.8555,41975
+not-damaged,0.9613,0.8855,0.9219,40951
+damaged,0.6985,0.8816,0.7795,12319
 
-Weighted Avg,0.9264,0.9151,0.9175,158134
+Weighted Avg,0.9006,0.8846,0.8889,53270
 
 Binary Metrics (positive class = damaged)
-Precision,0.7802
-Recall,0.9468
-F1-Score,0.8555
+Precision,0.6985
+Recall,0.8816
+F1-Score,0.7795
 
 === Confusion Matrix ===
 Predicted ->,not-damaged,damaged
-not-damaged,104966,11193
-damaged,2233,39742
+not-damaged,36263,4688
+damaged,1458,10861

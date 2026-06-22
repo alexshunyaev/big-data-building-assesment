@@ -1,5 +1,6 @@
 import cv2
 import shutil
+import numpy as np
 from pathlib import Path
 from tqdm import tqdm
 
@@ -57,13 +58,18 @@ def process_single_crops():
                 if img is None:
                     continue
                 
-                # Crop right half (post-disaster only)
+                # We add padding because YOLO crops images to squares
                 h, w, c = img.shape
-                post_img = img[:, w//2:]
+                square_size = max(h, w)
+                padded_img = np.zeros((square_size, square_size, c), dtype=np.uint8)
                 
-                # Save to both directories
-                cv2.imwrite(str(dst_multi / img_path.name), post_img)
-                cv2.imwrite(str(dst_binary / img_path.name), post_img)
+                y_offset = (square_size - h) // 2
+                x_offset = (square_size - w) // 2
+                padded_img[y_offset:y_offset+h, x_offset:x_offset+w] = img
+                
+                # Save padded image to both directories
+                cv2.imwrite(str(dst_multi / img_path.name), padded_img)
+                cv2.imwrite(str(dst_binary / img_path.name), padded_img)
 
 if __name__ == '__main__':
     # Clear existing dirs

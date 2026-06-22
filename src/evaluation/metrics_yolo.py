@@ -39,8 +39,8 @@ if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
 # Damage class names
-CLASS_NAMES = ['no-damage', 'minor-damage', 'major-damage', 'destroyed']
-RUN_NAME = "single_multi_yolo11m_cls_augmented"
+CLASS_NAMES = ['not-damaged', 'damaged']
+RUN_NAME = "single_binary_yolo11l_cls"
 
 
 def plot_training_curves(history_path: str | Path, output_dir: str | Path):
@@ -212,7 +212,7 @@ def run_full_evaluation():
     Orchestrates the evaluation pipeline.
     """
     # Define paths
-    data_dir = PROJECT_ROOT / "data" / "yolo_single_multi" / "val"
+    data_dir = PROJECT_ROOT / "data" / "yolo_single_binary" / "val"
     yolo_run_dir = PROJECT_ROOT / "results" / "res_yolo" / RUN_NAME
     model_path = yolo_run_dir / "weights" / "best.pt"
     history_path = yolo_run_dir / "results.csv"

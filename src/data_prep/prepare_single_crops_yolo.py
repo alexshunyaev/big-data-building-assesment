@@ -76,7 +76,9 @@ if __name__ == '__main__':
     for d in [MULTI_DIR, BINARY_DIR]:
         if d.exists():
             print(f"[*] Clearing {d.name}...")
-            shutil.rmtree(d)
+            for p in d.rglob('*'):
+                if p.is_file() and p.name != '.gitignore':
+                    p.unlink()
     
     process_single_crops()
     print(f"\n[+] Multi dataset ready: {MULTI_DIR}")

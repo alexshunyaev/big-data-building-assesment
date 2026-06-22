@@ -1,0 +1,14 @@
+=== YOLO Classification Metrics (single_binary_yolo11l_cls) ===
+
+Final Evaluation Accuracy,0.8729
+
+Class,Precision,Recall,F1-Score,Support
+not-damaged,0.7611,0.6567,0.7051,12319
+damaged,0.9008,0.9380,0.9190,40951
+
+Weighted Avg,0.8685,0.8729,0.8696,53270
+
+=== Confusion Matrix ===
+Predicted ->,not-damaged,damaged
+not-damaged,8090,4229
+damaged,2539,38412

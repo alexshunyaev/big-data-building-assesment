@@ -36,3 +36,11 @@ The models address the severe class imbalance in the xBD dataset directly at the
 ### Binary Model (`BCEWithLogitsLoss`)
 *   **Implementation:** Uses PyTorch's standard Binary Cross Entropy with Logits Loss.
 *   **Description:** Applies a dynamically calculated `pos_weight` based on the class distribution in the training set. This explicitly counteracts the massive imbalance between the "Not Damaged" and "Damaged" building classes at a batch level.
+
+## Experimental Architectures
+
+The early non-siamese Binary ViT architecture (and its corresponding training script) has been moved to the `experiments/` directories:
+*   `src/experiments/train_vit_binary.py`
+*   `src/models_vit/experiments/vit_binary.py`
+
+These use a single input channel setup and were deprecated in favor of the more accurate Siamese approach.

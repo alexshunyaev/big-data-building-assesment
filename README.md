@@ -39,7 +39,7 @@ The project supports different training paradigms for the Vision Transformer (Vi
 
 **ViT Training:**
 *   **Multiclass Training (4 damage levels):** `python src/train_vit.py`
-*   **Binary Training (Damaged vs. Not Damaged):** `python src/train_vit_binary.py`
+*   **ViT Binary Siamese Training (Damaged vs. Not Damaged):** `python src/train_vit_binary_siamese.py`
 *   *See [src/models_vit/README.md](src/models_vit/README.md) for ViT architecture details.*
 
 **YOLO Training:**

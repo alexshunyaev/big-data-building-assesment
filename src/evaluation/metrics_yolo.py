@@ -40,7 +40,7 @@ if str(_SRC) not in sys.path:
 
 # Damage class names
 CLASS_NAMES = ['not-damaged', 'damaged']
-RUN_NAME = "single_binary_yolo11l_cls"
+RUN_NAME = "single_binary_yolo11l_cls_siamese"
 
 
 def plot_training_curves(history_path: str | Path, output_dir: str | Path):

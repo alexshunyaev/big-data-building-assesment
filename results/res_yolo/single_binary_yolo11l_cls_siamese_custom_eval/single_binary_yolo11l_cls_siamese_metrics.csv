@@ -1,0 +1,14 @@
+=== YOLO Classification Metrics (single_binary_yolo11l_cls_siamese) ===
+
+Final Evaluation Accuracy,0.8729
+
+Class,Precision,Recall,F1-Score,Support
+not-damaged,0.7463,0.6821,0.7128,12319
+damaged,0.9068,0.9302,0.9184,40951
+
+Weighted Avg,0.8697,0.8729,0.8708,53270
+
+=== Confusion Matrix ===
+Predicted ->,not-damaged,damaged
+not-damaged,8403,3916
+damaged,2857,38094

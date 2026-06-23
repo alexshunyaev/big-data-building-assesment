@@ -1,0 +1,18 @@
+=== YOLO Classification Metrics (single_multi_yolo11m_cls_augmented-2) ===
+
+Final Evaluation Accuracy,0.8922
+
+Class,Precision,Recall,F1-Score,Support
+no-damage,0.7865,0.8487,0.8164,3741
+minor-damage,0.5997,0.6547,0.6260,3823
+major-damage,0.7564,0.5558,0.6408,4755
+destroyed,0.9433,0.9575,0.9503,40951
+
+Weighted Avg,0.8910,0.8922,0.8900,53270
+
+=== Confusion Matrix ===
+Predicted ->,no-damage,minor-damage,major-damage,destroyed
+no-damage,3175,194,63,309
+minor-damage,277,2503,268,775
+major-damage,173,667,2643,1272
+destroyed,412,810,520,39209

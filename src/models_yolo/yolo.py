@@ -101,7 +101,7 @@ def process_file(json_path: Path, target_img_dir: Path, target_lbl_dir: Path) ->
     return True
 
 
-def prepare_yolo_dataset():
+def prepare_yolo_dataset() -> None:
     """
     Cleans up old data, processes JSON files into YOLO format, and splits
     the dataset into 90/10 train/validation sets.
@@ -146,7 +146,7 @@ names:
     print(f"Dataset prepared. Train: {train_count} | Val: {val_count}")
 
 
-def train_yolo_model():
+def train_yolo_model() -> None:
     """
     Initializes and trains the YOLOv11s model on the prepared dataset.
     """

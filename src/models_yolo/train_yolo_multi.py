@@ -1,3 +1,11 @@
+"""
+YOLO Multiclass Classification Training Script
+
+This module configures and executes the training pipeline for a YOLOv11m-cls
+model on the multiclass building damage dataset (4 damage levels).
+It implements custom weighted sampling to combat class imbalance.
+"""
+
 import torch
 from pathlib import Path
 import torch.nn.functional as F
@@ -6,6 +14,7 @@ from ultralytics.models.yolo.classify.train import ClassificationTrainer
 from ultralytics.data.build import build_dataloader
 from ultralytics.utils.torch_utils import is_parallel, LOGGER, torch_distributed_zero_first
 from torch.utils.data import DataLoader, WeightedRandomSampler
+from typing import Optional, Any
 
 # Paths
 _HERE = Path(__file__).resolve().parent
@@ -19,7 +28,12 @@ class BalancedClassificationTrainer(ClassificationTrainer):
     Custom Classification Trainer that uses a WeightedRandomSampler 
     to handle class imbalance.
     """
-    def get_dataloader(self, dataset_path: str, batch_size: int = 16, rank: int = 0, mode: str = "train"):
+    def get_dataloader(self, dataset_path: str, batch_size: int = 16, rank: int = 0, mode: str = "train") -> DataLoader:
+        """
+        Creates and returns a DataLoader for the given dataset split.
+        During training, it injects a WeightedRandomSampler based on the inverse
+        square root of class counts.
+        """
         with torch_distributed_zero_first(rank):
             dataset = self.build_dataset(dataset_path, mode)
 
@@ -78,7 +92,11 @@ class BalancedClassificationTrainer(ClassificationTrainer):
                 self.model.transforms = loader.dataset.torch_transforms
         return loader
 
-    def get_model(self, cfg=None, weights=None, verbose=True):
+    def get_model(self, cfg: Optional[dict] = None, weights: Optional[str] = None, verbose: bool = True) -> Any:
+        """
+        Retrieves the base model and dynamically overrides its default Cross-Entropy
+        criterion with a custom Focal Loss function.
+        """
         model = super().get_model(cfg, weights, verbose)
         
         class FocalLossCriterion:

@@ -1,5 +1,12 @@
+"""
+YOLO Single Crops Preparation Script
+
+This module reads pre-generated Vision Transformer (ViT) image crops
+and reformats them into single-image classification directories suitable 
+for YOLO training, including handling multiclass and binary mappings.
+"""
+
 import cv2
-import shutil
 import numpy as np
 from pathlib import Path
 from tqdm import tqdm
@@ -20,7 +27,12 @@ BINARY_MAP = {
     'destroyed': 'damaged'
 }
 
-def process_single_crops():
+def process_single_crops() -> None:
+    """
+    Processes the ViT crop directories and reformats them for YOLO classification.
+    It creates both Multiclass (4 damage levels) and Binary (Damaged vs. Not Damaged) 
+    dataset splits. Images are square-padded to preserve aspect ratio during YOLO's resizing.
+    """
     if not VIT_DIR.exists():
         print(f"[!] Error: {VIT_DIR} not found.")
         return

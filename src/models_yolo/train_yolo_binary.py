@@ -1,3 +1,12 @@
+"""
+YOLO Binary Classification Training Script
+
+This module configures and executes the training pipeline for a YOLOv11l-cls
+model on the binary building damage dataset (Damaged vs. Not Damaged).
+It integrates custom weighted sampling and Focal Loss to address extreme 
+class imbalance.
+"""
+
 import torch
 from pathlib import Path
 import torch.nn.functional as F
@@ -6,6 +15,7 @@ from ultralytics.models.yolo.classify.train import ClassificationTrainer
 from ultralytics.data.build import build_dataloader
 from ultralytics.utils.torch_utils import is_parallel, LOGGER, torch_distributed_zero_first
 from torch.utils.data import DataLoader, WeightedRandomSampler
+from typing import Optional, Any
 
 # Paths
 _HERE = Path(__file__).resolve().parent
@@ -16,7 +26,16 @@ RUN_NAME = "single_binary_yolo11l_cls_siamese_balanced"
 
 
 class BalancedClassificationTrainer(ClassificationTrainer):
-    def get_dataloader(self, dataset_path: str, batch_size: int = 16, rank: int = 0, mode: str = "train"):
+    """
+    Custom Classification Trainer extending YOLO's defaults to inject
+    a WeightedRandomSampler for handling class imbalance.
+    """
+    def get_dataloader(self, dataset_path: str, batch_size: int = 16, rank: int = 0, mode: str = "train") -> DataLoader:
+        """
+        Creates and returns a DataLoader for the given dataset split.
+        During training, it injects a WeightedRandomSampler based on the inverse
+        square root of class counts.
+        """
         with torch_distributed_zero_first(rank):
             dataset = self.build_dataset(dataset_path, mode)
 
@@ -71,7 +90,11 @@ class BalancedClassificationTrainer(ClassificationTrainer):
                 self.model.transforms = loader.dataset.torch_transforms
         return loader
 
-    def get_model(self, cfg=None, weights=None, verbose=True):
+    def get_model(self, cfg: Optional[dict] = None, weights: Optional[str] = None, verbose: bool = True) -> Any:
+        """
+        Retrieves the base model and dynamically overrides its default Cross-Entropy
+        criterion with a custom Focal Loss function.
+        """
         model = super().get_model(cfg, weights, verbose)
         
         class FocalLossCriterion:
@@ -94,6 +117,9 @@ class BalancedClassificationTrainer(ClassificationTrainer):
         return model
 
 class BalancedYOLO(YOLO):
+    """
+    YOLO wrapper to inject the custom BalancedClassificationTrainer into the task map.
+    """
     @property
     def task_map(self):
         task_map = super().task_map

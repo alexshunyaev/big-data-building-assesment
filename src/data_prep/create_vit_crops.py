@@ -14,7 +14,7 @@ from shapely import wkt
 from tqdm import tqdm
 
 
-def create_vit_dataset(raw_dir: Path, out_dir: Path, crop_size: int = 64):
+def create_vit_dataset(raw_dir: Path, out_dir: Path, crop_size: int = 64) -> None:
     """
     Extracts building pairs (Pre and Post) and saves them into class folders.
 
